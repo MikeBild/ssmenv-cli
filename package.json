@@ -1,0 +1,15 @@
+{
+  "name": "@mikebild/ssmenv-cli",
+  "version": "1.0.0",
+  "description": "AWS SSM Parameter-Store to Environment Variables",
+  "bin": {
+    "ssmenv": "bin/ssmenv.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "aws-sdk": "2.604.0",
+    "cross-spawn": "7.0.1",
+    "dotenv": "8.2.0",
+    "minimist": "1.2.0"
+  }
+}
