@@ -6,31 +6,47 @@ require('dotenv').config({ path: `.env.${process.env.NODE_ENV}` })
 require('dotenv').config()
 
 const CDK_STACK_NAME = process.env.CDK_STACK_NAME
+const CDK_STACK_REGION = process.env.CDK_STACK_REGION
 const CDK_STACK_ENV = process.env.CDK_STACK_ENV
+let nameSpace
+
+if (!CDK_STACK_REGION) {
+  console.error(`Environment Variable "CDK_STACK_REGION" is missing.`)
+  process.exit(1)
+}
 
 if (!CDK_STACK_NAME) {
   console.error(`Environment Variable "CDK_STACK_NAME" is missing.`)
   process.exit(1)
 }
 
+nameSpace = '/' + CDK_STACK_NAME
+
 if (!CDK_STACK_ENV) {
   console.error(`Environment Variable "CDK_STACK_ENV" is missing.`)
-  process.exit(1)
+} else {
+  nameSpace += '/' + CDK_STACK_ENV
 }
 
 main()
   .then(() => {
-    spawn(argv._[0], argv._.slice(1), { stdio: 'inherit' }).on('exit', exitCode => {
-      process.exit(exitCode)
-    })
-  })
-  .catch(error => {
-    console.error(error)
-    process.exit(1)
+  //   spawn(argv._[0], argv._.slice(1), { stdio: 'inherit' })
+  //   .on('exit', exitCode => {
+  //   process.exit(exitCode)
+  //   })
+  // })
+  // .catch(error => {
+  //   console.error(error)
+  //   process.exit(1)
+    process.exit(0)
   })
 
 async function main() {
-  const ssm = new SSM()
+  const ssm = new SSM({
+    apiVersion: '2014-11-06', 
+    region: CDK_STACK_REGION
+  })
+
   const Names = await allParametersByPath(ssm)
 
   const chunkedNames = Names.reduce((state, name, i) => {
@@ -40,14 +56,14 @@ async function main() {
     return state
   }, [])
 
-  const chunkedPromises = chunkedNames.map(Names => ssm.getParameters({ Names }).promise())
+  const chunkedPromises = chunkedNames.map(Names => ssm.getParameters({ Names, WithDecryption: true }).promise())
   const allChunkedResults = await Promise.all(chunkedPromises)
   const allParameters = allChunkedResults.reduce((state, results) => [...state, ...results.Parameters], [])
 
-  console.log(`Start mapping AWS SSM store parameters /${CDK_STACK_NAME}/${CDK_STACK_ENV}/ to environment variables.`)
+  console.log(`Start mapping AWS SSM store parameters ${nameSpace}/ to environment variables.`)
 
   allParameters.forEach(({ Name, Value }) => {
-    const key = Name.replace(`/${CDK_STACK_NAME}/${CDK_STACK_ENV}/`, '')
+    const key = Name.replace(`${nameSpace}/`, '')
     const value = Value
     const hasExistingValue = Boolean(process.env[key])
 
@@ -60,7 +76,7 @@ async function main() {
 
 async function allParametersByPath(ssm, names = [], nextToken) {
   const { Parameters = [], NextToken } = await ssm
-    .getParametersByPath({ Path: `/${CDK_STACK_NAME}/${CDK_STACK_ENV}`, NextToken: nextToken })
+    .getParametersByPath({ Path: `${nameSpace}`, NextToken: nextToken, WithDecryption: true })
     .promise()
 
   const Names = [...names, ...Parameters.map(({ Name }) => Name)]
